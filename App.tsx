@@ -1,131 +1,108 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useEffect, useState } from "react";
+import { View, StyleSheet } from "react-native";
+import MapView, { Marker, Polyline,PROVIDER_GOOGLE } from "react-native-maps";
+import axios from "axios";
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+const GOOGLE_MAPS_API_KEY = "AIzaSyAv-lL1px8xBL9rdovBXB8o4BgWuE-rKb8"; // Replace with your API key
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+const App = () => {
+  const [route, setRoute] = useState<{ latitude: number; longitude: number }[]>([]);
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+  const origin = { latitude: 37.7749, longitude: -122.4194 }; // San Francisco
+  const destination = { latitude: 36.0522, longitude: -121.2437 }; // Los Angeles
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
+  useEffect(() => {
+    const fetchRoute = async () => {
+      try {
+        const response = await axios.get(
+          `https://maps.googleapis.com/maps/api/directions/json`,
           {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+            params: {
+              origin: `${origin.latitude},${origin.longitude}`,
+              destination: `${destination.latitude},${destination.longitude}`,
+              key: GOOGLE_MAPS_API_KEY,
+            },
+          }
+        );
+    
+        console.log("Directions API Response:", response.data); // Debugging
+    
+        if (response.data.routes.length) {
+          const points = response.data.routes[0].overview_polyline.points;
+          const coordinates = decodePolyline(points);
+          setRoute(coordinates);
+        } else {
+          console.warn("No routes found.");
+        }
+      } catch (error) {
+        console.error("Error fetching directions:", error);
+      }
+    };
+    
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+    fetchRoute();
+  }, []);
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  // Function to decode polyline
+  const decodePolyline = (encoded: string) => {
+    let index = 0, lat = 0, lng = 0, coordinates = [];
+    
+    while (index < encoded.length) {
+      let shift = 0, result = 0, byte;
+      do {
+        byte = encoded.charCodeAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
+      
+      let deltaLat = result & 1 ? ~(result >> 1) : result >> 1;
+      lat += deltaLat;
+  
+      shift = 0;
+      result = 0;
+      do {
+        byte = encoded.charCodeAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
+  
+      let deltaLng = result & 1 ? ~(result >> 1) : result >> 1;
+      lng += deltaLng;
+  
+      coordinates.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+    }
+    return coordinates;
   };
-
-  /*
-   * To keep the template simple and small we're adding padding to prevent view
-   * from rendering under the System UI.
-   * For bigger apps the reccomendation is to use `react-native-safe-area-context`:
-   * https://github.com/AppAndFlow/react-native-safe-area-context
-   *
-   * You can read more about it here:
-   * https://github.com/react-native-community/discussions-and-proposals/discussions/827
-   */
-  const safePadding = '5%';
+  
 
   return (
-    <View style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        style={backgroundStyle}>
-        <View style={{paddingRight: safePadding}}>
-          <Header/>
-        </View>
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-            paddingHorizontal: safePadding,
-            paddingBottom: safePadding,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+    <View style={styles.container}>
+      <MapView
+  provider={MapView.PROVIDER_GOOGLE} // Force Google Maps
+  style={{ flex: 1 }}
+  initialRegion={{
+    latitude: 37.7749,
+    longitude: -122.4194,
+    latitudeDelta: 5,
+    longitudeDelta: 5,
+  }}
+>
+        <Marker coordinate={origin} title="Origin" />
+        <Marker coordinate={destination} title="Destination" />
+        {route.length > 0 && <Polyline coordinates={[
+    { latitude: 37.7749, longitude: -122.4194 },
+    { latitude: 36.7783, longitude: -119.4179 },
+    { latitude: 34.0522, longitude: -118.2437 }
+  ]}
+   strokeWidth={4} strokeColor="blue" />}
+      </MapView>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
+  container: { flex: 1 },
+  map: { flex: 1 },
 });
 
 export default App;
